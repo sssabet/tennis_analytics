@@ -1,0 +1,6 @@
+weights/court_keypoints.pth filter=lfs diff=lfs merge=lfs -text
+weights/tracknet.pth filter=lfs diff=lfs merge=lfs -text
+weights/courtside_yolo.pt filter=lfs diff=lfs merge=lfs -text
+weights/yolov8_pose.pt filter=lfs diff=lfs merge=lfs -text
+weights/*.pth filter=lfs diff=lfs merge=lfs -text
+weights/*.pt filter=lfs diff=lfs merge=lfs -text
