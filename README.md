@@ -2,7 +2,7 @@
 
 Tennis video analysis tool with AI-powered ball tracking, player pose estimation, and court detection.
 
-![Video](output/readme.png)
+<img width="1913" height="750" alt="readme" src="https://github.com/user-attachments/assets/92c79b55-042d-440e-afe4-b116a8d0a8b8" />
 
 ## Installation
 
