@@ -1,23 +1,20 @@
-# TRACE
+# Tennis Analytics
 
-**Tennis video analysis with AI**
+Tennis video analysis tool with AI-powered ball tracking, player pose estimation, and court detection.
 
-Detects court lines, ball, players with pose estimation, and audio-based shot detection.
-
-![Video](https://github.com/hgupt3/TRACE/assets/112455192/627e8ca6-86c1-4409-938d-2b45e875bbfa)
+![Video](output/readme.png)
 
 ## Installation
 
-1. Install the required dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Ensure you have the model weights in the `weights/` folder:
-   - `weights/tracknet.pth` - Ball tracking
-   - `weights/courtside_yolo.pt` - YOLO ball detection
-   - `weights/court_keypoints.pth` - Court keypoint detection
-   - `weights/yolov8_pose.pt` - Player pose estimation
+Ensure model weights are in the `weights/` folder, with git lfs:
+- `tracknet.pth` - TrackNet ball tracking
+- `courtside_yolo.pt` - YOLO ball detection
+- `court_keypoints.pth` - Court keypoint detection
+- `yolov8_pose.pt` - Player pose estimation
 
 ## Usage
 
@@ -31,20 +28,24 @@ python main.py --input video.mp4
 
 | Option | Description |
 |--------|-------------|
-| `--input`, `-i` | Path to input video (required) |
-| `--output`, `-o` | Path to output video (default: `input_traced.mp4`) |
-| `--no-display` | Run without display window |
+| `--input`, `-i` | Input video path (required) |
+| `--output`, `-o` | Output video path (default: `input_traced.mp4`) |
+| `--ball-only` | Ball tracking only (faster) |
 | `--device` | `cuda`, `cpu`, or `auto` (default: `auto`) |
-| `--ball-only` | Only run ball tracking (faster) |
+| `--no-display` | Run without display window |
+| `--detector` | `fusion`, `tracknet`, or `courtside` (default: `fusion`) |
 
 ### Examples
 
 ```bash
-# Full analysis with GPU
-python main.py --input video.mp4 --device cuda
+# Full analysis
+python main.py --input video.mp4
 
-# Ball tracking only (faster)
+# Ball tracking only
 python main.py --input video.mp4 --ball-only
+
+# Force GPU usage
+python main.py --input video.mp4 --device cuda
 
 # Custom output, no display
 python main.py --input video.mp4 --output result.mp4 --no-display
@@ -52,27 +53,32 @@ python main.py --input video.mp4 --output result.mp4 --no-display
 
 ## Features
 
-### Video Output Layout
+- **Ball Tracking**: Fusion of TrackNet + CourtSide YOLO + Kalman Filter
+- **Player Detection**: YOLOv8 pose estimation with skeleton overlay
+- **Court Detection**: ResNet-50 keypoint detection
+- **Audio Analysis**: Shot detection from audio peaks
 
-The output video has a **sidebar on the left** containing:
-- **Court View** - Top-down homography view
-- **Audio Waveform** - Real-time audio intensity
-- **Shot Detection** - Visual indicator when shots are detected
-- **Detection Info** - Ball/court detection sources
+## How it Works
 
-The **main video** on the right shows:
-- Player pose skeletons (YOLOv8)
-- Ball tracking with trajectory
-- Court keypoints
+### Ball Detection
+The system uses a robust fusion approach for ball tracking:
+- **TrackNet**: A specialized deep learning model trained for tennis ball tracking in broadcast videos.
+- **CourtSide YOLO**: A YOLO-based detector used as a secondary source to improve detection in various conditions.
+- **Kalman Filter**: Fuses detections from both models and provides smooth predictions even when the ball is temporarily obscured or missed by the detectors.
+- **Interpolation**: Fills in gaps in the trajectory to provide a continuous ball path.
 
-### Detection Methods
+### Court Detection
+Court detection is handled through a multi-stage process:
+- **ResNet-50 Keypoint Detector**: A fine-tuned ResNet-50 model identifies 14 critical court keypoints (corners, service lines, etc.).
+- **Classical CV Fallback**: If the deep learning model fails, the system falls back to classical computer vision techniques (Hough lines, Canny edges, and contour analysis) to identify the court boundaries.
+- **Homography**: Uses the detected keypoints to map the court to a top-down view for tactical analysis.
 
-| Component | Method |
-|-----------|--------|
-| **Ball** | TrackNet + CourtSide YOLO + Kalman Filter fusion |
-| **Players** | YOLOv8-pose with skeleton overlay |
-| **Court** | ResNet-50 keypoint detection |
-| **Shots** | Audio peak detection |
+### Shot Detection
+The system analyzes the audio stream from the video to detect when a ball is hit:
+- **Audio Extraction**: Extracts the audio track from the video using FFmpeg.
+- **Intensity Analysis**: Calculates the RMS (Root Mean Square) intensity for each frame.
+- **Peak Detection**: Identifies sharp spikes in audio intensity that correspond to the sound of a tennis shot, using prominence-based peak detection from `scipy`.
+- **Visual Feedback**: Provides a real-time waveform and shot indicator in the output video.
 
 ## Project Structure
 
@@ -89,29 +95,14 @@ TRACE/
 ├── BallMapping.py              # Ball position utilities
 ├── TraceHeader.py              # Shared utilities
 ├── requirements.txt            # Dependencies
-└── weights/
-    ├── tracknet.pth            # TrackNet ball tracking
-    ├── courtside_yolo.pt       # YOLO ball detection
-    ├── court_keypoints.pth     # Court keypoint detection
-    └── yolov8_pose.pt          # YOLOv8 pose estimation
+└── weights/                    # Model weights
+
+## Credits & References
+
+This project utilizes several open-source models and research:
+
+- **TrackNet**: Based on [TrackNet: Tennis Ball Tracking from Broadcast Video by Deep Learning Networks](https://github.com/yuchuanhuang/TrackNet) by Yu-Chuan Huang.
+- **Court Detection**: ResNet-50 keypoint detection inspired by [Muhammad Moin Faisal's Tennis Analysis](https://github.com/MuhammadMoinFaisal/tennis_analysis).
+- **CourtSide YOLO**: Ball detection using weights from the [CourtSide](https://github.com/viren-m-mehta/CourtSide) project.
+- **Player Pose**: Human pose estimation powered by [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics).
 ```
-
-## Required Libraries
-
-- opencv-python
-- torch
-- numpy
-- mediapipe
-- ultralytics
-- scipy
-- filterpy
-
-Install all:
-```bash
-pip install -r requirements.txt
-```
-
-## Credits
-
-Ball tracking based on:
-> Yu-Chuan Huang, "TrackNet: Tennis Ball Tracking from Broadcast Video by Deep Learning Networks," Master Thesis, National Chiao Tung University, Taiwan, 2018.
