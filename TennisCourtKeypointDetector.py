@@ -38,7 +38,7 @@ class CourtKeypointDetector:
     def __init__(self, model_path: Optional[str] = None, device: str = None):
         """
         Args:
-            model_path: Path to pretrained ResNet-50 keypoints model (keypoints_model_50.pth)
+            model_path: Path to pretrained ResNet-50 keypoints model (court_keypoints.pth)
             device: Device to use ('cuda', 'cpu', or None for auto)
         """
         if device is None:
@@ -80,6 +80,7 @@ class CourtKeypointDetector:
                 print("Falling back to classical CV approach")
         
         self.last_keypoints = None
+        self.last_all_keypoints = None  # Store all 14 keypoints when using model
         
     def detect(self, frame: np.ndarray) -> Tuple[Optional[List[Tuple]], str]:
         """
@@ -95,6 +96,8 @@ class CourtKeypointDetector:
             # Use deep learning model
             keypoints = self._detect_with_model(frame)
             if keypoints:
+                # Store all 14 keypoints for visualization
+                self.last_all_keypoints = keypoints
                 # Extract 4 corners from keypoints
                 corners = self._keypoints_to_corners(keypoints, w, h)
                 if corners:
@@ -103,6 +106,7 @@ class CourtKeypointDetector:
         # Fallback to classical CV (Hough lines)
         corners = self._detect_with_cv(frame)
         if corners:
+            self.last_all_keypoints = None  # CV doesn't provide all keypoints
             return corners, 'cv'
         
         # Use Kalman prediction if available
@@ -110,6 +114,13 @@ class CourtKeypointDetector:
             return self.last_keypoints, 'kalman'
         
         return None, 'none'
+    
+    def get_all_keypoints(self) -> Optional[List[Tuple]]:
+        """
+        Get all 14 keypoints if available (only when using model)
+        Returns None if not available or using CV fallback
+        """
+        return self.last_all_keypoints
     
     def _detect_with_model(self, frame: np.ndarray) -> Optional[List[Tuple]]:
         """

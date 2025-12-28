@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw
 
 from BallTrackNet import BallTrackerNet
 
+
 def combine_three_frames(frame1, frame2, frame3, width, height):
     # Resize and type converting for each frame
     img = cv2.resize(frame1, (width, height))
@@ -33,19 +34,22 @@ class BallDetector:
     """
     Ball Detector model responsible for receiving the frames and detecting the ball
     """
+
     def __init__(self, save_state, out_channels=2, device=None):
         # Auto-detect GPU if not specified
         if device is None:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             self.device = torch.device(device)
-        
+
         print(f"TrackNet using device: {self.device}")
-        
+
         # Load TrackNet model weights
         self.detector = BallTrackerNet(out_channels=out_channels)
-        saved_state_dict = torch.load(save_state, map_location=self.device, weights_only=False)
-        self.detector.load_state_dict(saved_state_dict['model_state'])
+        saved_state_dict = torch.load(
+            save_state, map_location=self.device, weights_only=False
+        )
+        self.detector.load_state_dict(saved_state_dict["model_state"])
         self.detector.eval().to(self.device)
 
         self.current_frame = None
@@ -78,8 +82,13 @@ class BallDetector:
         # detect only in 3 frames were given
         if self.last_frame is not None:
             # combine the frames into 1 input tensor
-            frames = combine_three_frames(self.current_frame, self.before_last_frame, self.last_frame,
-                                          self.model_input_width, self.model_input_height)
+            frames = combine_three_frames(
+                self.current_frame,
+                self.before_last_frame,
+                self.last_frame,
+                self.model_input_width,
+                self.model_input_height,
+            )
             frames = (torch.from_numpy(frames) / 255).to(self.device)
             # Inference (forward pass)
             x, y = self.detector.inference(frames)
@@ -90,6 +99,11 @@ class BallDetector:
 
                 # Check distance from previous location and remove outliers
                 if self.xy_coordinates[-1][0] is not None:
-                    if np.linalg.norm(np.array([x,y]) - self.xy_coordinates[-1]) > self.threshold_dist:
+                    if (
+                        np.linalg.norm(np.array([x, y]) - self.xy_coordinates[-1])
+                        > self.threshold_dist
+                    ):
                         x, y = None, None
-            self.xy_coordinates = np.append(self.xy_coordinates, np.array([[x, y]]), axis=0)
+            self.xy_coordinates = np.append(
+                self.xy_coordinates, np.array([[x, y]]), axis=0
+            )

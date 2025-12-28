@@ -38,22 +38,13 @@ python main.py --input video.mp4
 ### Examples
 
 ```bash
-# Full analysis
-python main.py --input video.mp4
-
-# Ball tracking only
-python main.py --input video.mp4 --ball-only
-
-# Force GPU usage
-python main.py --input video.mp4 --device cuda
-
 # Custom output, no display
 python main.py --input video.mp4 --output result.mp4 --no-display
 ```
 
 ## Features
 
-- **Ball Tracking**: Fusion of TrackNet + CourtSide YOLO + Kalman Filter
+- **Ball Tracking**: Fusion of TrackNet + YOLO (from CourtSide) + Kalman Filter
 - **Player Detection**: YOLOv8 pose estimation with skeleton overlay
 - **Court Detection**: ResNet-50 keypoint detection
 - **Audio Analysis**: Shot detection from audio peaks
@@ -61,48 +52,29 @@ python main.py --input video.mp4 --output result.mp4 --no-display
 ## How it Works
 
 ### Ball Detection
-The system uses a robust fusion approach for ball tracking:
-- **TrackNet**: A specialized deep learning model trained for tennis ball tracking in broadcast videos.
-- **CourtSide YOLO**: A YOLO-based detector used as a secondary source to improve detection in various conditions.
-- **Kalman Filter**: Fuses detections from both models and provides smooth predictions even when the ball is temporarily obscured or missed by the detectors.
-- **Interpolation**: Fills in gaps in the trajectory to provide a continuous ball path.
+The system uses a fusion approach for ball tracking:
+- **TrackNet**: A deep learning model trained for tennis ball tracking in broadcast videos.
+- **CourtSide YOLO**: Fine-tuned YOLOv11n model used as a secondary source to improve detection in various conditions.  https://huggingface.co/Davidsv/CourtSide-Computer-Vision-v1
+- **Kalman Filter**: Fuses detections from both models, smooths the trajectory, and predicts ball position during short occlusions.
 
 ### Court Detection
 Court detection is handled through a multi-stage process:
-- **ResNet-50 Keypoint Detector**: A fine-tuned ResNet-50 model identifies 14 critical court keypoints (corners, service lines, etc.).
-- **Classical CV Fallback**: If the deep learning model fails, the system falls back to classical computer vision techniques (Hough lines, Canny edges, and contour analysis) to identify the court boundaries.
-- **Homography**: Uses the detected keypoints to map the court to a top-down view for tactical analysis.
+- **ResNet-50 Keypoint Detector**: A ResNet-50 model (23.6M parameters) identifies 14 critical court keypoints (corners, service lines, etc.).
+- **Homography**: Uses the detected keypoints (from either method) to map the court to a top-down view for tactical analysis.
 
 ### Shot Detection
-The system analyzes the audio stream from the video to detect when a ball is hit:
+The system uses a **fusion approach** combining audio analysis and ball movement to detect shots:
 - **Audio Extraction**: Extracts the audio track from the video using FFmpeg.
-- **Intensity Analysis**: Calculates the RMS (Root Mean Square) intensity for each frame.
-- **Peak Detection**: Identifies sharp spikes in audio intensity that correspond to the sound of a tennis shot, using prominence-based peak detection from `scipy`.
-- **Visual Feedback**: Provides a real-time waveform and shot indicator in the output video.
-
-## Project Structure
-
-```
-TRACE/
-├── main.py                      # CLI entry point
-├── TennisAnalyzer.py           # Main analysis orchestrator
-├── AudioAnalyzer.py            # Audio-based shot detection
-├── BallTrackerFusion.py        # Ball detection fusion
-├── BallDetection.py            # TrackNet ball detector
-├── BallTrackNet.py             # TrackNet model architecture
-├── TennisCourtKeypointDetector.py  # Court keypoint detection
-├── CourtMapping.py             # Court homography utilities
-├── BallMapping.py              # Ball position utilities
-├── TraceHeader.py              # Shared utilities
-├── requirements.txt            # Dependencies
-└── weights/                    # Model weights
+- **Intensity Analysis**: Calculates the RMS (Root Mean Square) intensity for each frames which provides a measure of audio energy/volume per frame. Then identifies sharp spikes in audio intensity that correspond to the sound of a tennis shot, using prominence-based peak detection from `scipy`.
+- **Ball Net-Crossing Detection**: Tracks ball position in court-map coordinates and detects when the ball crosses the net (changes from one side to the other). This uses the ball's Y-coordinate relative to the net line: `crossed = (prev_side * cur_side < 0)` where sides are calculated as `ball_y - net_y`.
+- **Fusion Logic**: A shot is only counted when **both conditions are met**: (1) the ball crosses the net, AND (2) there is an audio peak within ±10 frames of the net-crossing event. This dual-requirement reduces false positives from crowd noise or ball bounces that don't result in shots.
 
 ## Credits & References
 
 This project utilizes several open-source models and research:
 
 - **TrackNet**: Based on [TrackNet: Tennis Ball Tracking from Broadcast Video by Deep Learning Networks](https://github.com/yuchuanhuang/TrackNet) by Yu-Chuan Huang.
-- **Court Detection**: ResNet-50 keypoint detection inspired by [Muhammad Moin Faisal's Tennis Analysis](https://github.com/MuhammadMoinFaisal/tennis_analysis).
+- **Court Detection**: ResNet-50 keypoint detection architecture based on [Muhammad Moin Faisal's Tennis Analysis](https://github.com/MuhammadMoinFaisal/tennis_analysis).
 - **CourtSide YOLO**: Ball detection using weights from the [CourtSide](https://github.com/viren-m-mehta/CourtSide) project.
 - **Player Pose**: Human pose estimation powered by [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics).
 ```
