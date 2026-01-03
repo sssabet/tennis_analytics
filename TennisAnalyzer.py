@@ -8,7 +8,7 @@ Outputs: Single annotated video with optional picture-in-picture court view
 import cv2
 import numpy as np
 from numpy import pi, ones, zeros, uint8, where, cos, sin, float32
-from mediapipe import solutions
+import mediapipe as mp
 from typing import Optional, Tuple, List, Dict
 import os
 from pathlib import Path
@@ -143,7 +143,7 @@ class TennisAnalyzer:
         self.pose_device = pose_device
 
         # Keep MediaPipe as fallback
-        self.mp_pose = solutions.pose
+        self.mp_pose = mp.solutions.pose
         self.pose1 = self.mp_pose.Pose(
             model_complexity=2,
             min_detection_confidence=0.25,
@@ -252,8 +252,10 @@ class TennisAnalyzer:
             os.path.dirname(output_path) if os.path.dirname(output_path) else ".",
             exist_ok=True,
         )
+        # Use mp4v for OpenCV compatibility, will re-encode to H.264 later
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out = cv2.VideoWriter(output_path, fourcc, fps, (output_width, output_height))
+        temp_output = output_path.replace('.mp4', '_temp.mp4')
+        out = cv2.VideoWriter(temp_output, fourcc, fps, (output_width, output_height))
 
         # Crop regions for player detection
         crop1 = self._create_crop_config(0.5, 0, 1, 0.33, 0, 0, width, height)
@@ -1203,6 +1205,39 @@ class TennisAnalyzer:
             if self.frame_count > 0
             else 0
         )
+        
+        # Re-encode video with H.264 codec for browser compatibility
+        if os.path.exists(temp_output):
+            print(f"\nRe-encoding video with H.264 codec for browser compatibility...")
+            import subprocess
+            try:
+                # Use ffmpeg to re-encode with H.264
+                cmd = [
+                    'ffmpeg', '-y', '-i', temp_output,
+                    '-c:v', 'libx264',  # H.264 video codec
+                    '-preset', 'medium',  # Encoding speed/quality tradeoff
+                    '-crf', '23',  # Quality (lower = better, 18-28 is reasonable)
+                    '-pix_fmt', 'yuv420p',  # Pixel format for compatibility
+                    '-movflags', '+faststart',  # Enable streaming
+                    output_path
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                # Remove temp file
+                os.remove(temp_output)
+                print(f"Video re-encoded successfully!")
+            except subprocess.CalledProcessError as e:
+                print(f"Warning: Failed to re-encode video: {e}")
+                print(f"stderr: {e.stderr}")
+                # Fallback: just rename the temp file
+                if os.path.exists(temp_output):
+                    os.rename(temp_output, output_path)
+                print(f"Using original encoding (may not play in browser)")
+            except Exception as e:
+                print(f"Warning: Error during re-encoding: {e}")
+                if os.path.exists(temp_output):
+                    os.rename(temp_output, output_path)
+        
+        print(f"Output saved to: {output_path}")
 
         return stats
 
